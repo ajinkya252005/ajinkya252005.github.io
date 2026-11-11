@@ -36,10 +36,17 @@
   const modalDetail = document.getElementById('modal-detail');
   const modalMetaId = document.getElementById('modal-meta-id');
   const modalMetaFile = document.getElementById('modal-meta-file');
+  const modalMetaFormat = document.getElementById('modal-meta-format');
+  const modalPdfWrap = document.getElementById('modal-pdf-wrap');
   const modalPdfFrame = document.getElementById('modal-pdf-frame');
+  const modalImageWrap = document.getElementById('modal-image-wrap');
+  const modalImagePreview = document.getElementById('modal-image-preview');
+  const modalPdfNote = document.getElementById('modal-pdf-note');
   const modalPdfLoading = document.getElementById('modal-pdf-loading');
   const modalOpenNewTab = document.getElementById('modal-open-new-tab');
+  const modalOpenLabel = document.getElementById('modal-open-label');
   const modalDownloadPdf = document.getElementById('modal-download-pdf');
+  const modalDownloadLabel = document.getElementById('modal-download-label');
   const modalClose = document.getElementById('modal-close');
   const modalTriggers = document.querySelectorAll('.modal-trigger');
 
@@ -316,33 +323,70 @@
     });
   });
 
-  // ═══════════════════ CERTIFICATE / PDF MODAL ═══════════════════
+  // ═══════════════════ CERTIFICATE / PROOF MODAL ═══════════════════
+  const BLANK_IMAGE_SRC = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
   let lastFocusedElement = null;
   let pdfLoadTimer = null;
 
   function openModal(trigger) {
     lastFocusedElement = trigger;
     const certId = trigger.dataset.cert || 'doc';
+    const imagePath = trigger.dataset.image || '';
     const pdfPath = trigger.dataset.pdf || '';
+    const isImage = Boolean(imagePath);
+    const assetPath = isImage ? imagePath : pdfPath;
     const title = trigger.dataset.title || 'Verification Document';
     const detail = trigger.dataset.detail || '';
-    const filename = pdfPath.split('/').pop() || 'certificate.pdf';
+    const filename = assetPath.split('/').pop() || (isImage ? 'badge.png' : 'certificate.pdf');
 
     modalTitle.textContent = title;
     modalDetail.textContent = detail;
     modalMetaId.textContent = `cert_id: 0x${certId.toUpperCase()}`;
     modalMetaFile.textContent = `file: ${filename}`;
 
-    modalOpenNewTab.href = pdfPath;
-    modalDownloadPdf.href = pdfPath;
+    modalOpenNewTab.href = assetPath;
+    modalDownloadPdf.href = assetPath;
     modalDownloadPdf.setAttribute('download', filename);
 
     clearTimeout(pdfLoadTimer);
     modalPdfLoading.hidden = false;
-    modalPdfFrame.src = pdfPath;
-    pdfLoadTimer = setTimeout(() => {
-      modalPdfLoading.hidden = true;
-    }, 3500);
+
+    if (isImage) {
+      const ext = filename.includes('.') ? filename.split('.').pop().toLowerCase() : 'png';
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      modalOpenLabel.textContent = 'Open Image in New Tab';
+      modalDownloadLabel.textContent = 'Download Image';
+      modalMetaFormat.textContent = `format: ${mime}`;
+
+      modalPdfFrame.src = 'about:blank';
+      modalPdfWrap.hidden = true;
+      modalPdfNote.hidden = true;
+      modalImageWrap.hidden = false;
+      modalImagePreview.alt = title;
+      modalImagePreview.src = imagePath;
+
+      if (modalImagePreview.complete && modalImagePreview.naturalWidth > 0) {
+        modalPdfLoading.hidden = true;
+      } else {
+        pdfLoadTimer = setTimeout(() => {
+          modalPdfLoading.hidden = true;
+        }, 3500);
+      }
+    } else {
+      modalOpenLabel.textContent = 'Open PDF in New Tab';
+      modalDownloadLabel.textContent = 'Download PDF';
+      modalMetaFormat.textContent = 'format: application/pdf';
+
+      modalImageWrap.hidden = true;
+      modalImagePreview.src = BLANK_IMAGE_SRC;
+      modalPdfWrap.hidden = false;
+      modalPdfNote.hidden = false;
+      modalPdfFrame.src = pdfPath;
+
+      pdfLoadTimer = setTimeout(() => {
+        modalPdfLoading.hidden = true;
+      }, 3500);
+    }
 
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -353,10 +397,22 @@
   }
 
   modalPdfFrame.addEventListener('load', () => {
-    if (modalPdfFrame.getAttribute('src') && modalPdfFrame.getAttribute('src') !== 'about:blank') {
+    if (!modalPdfWrap.hidden && modalPdfFrame.getAttribute('src') && modalPdfFrame.getAttribute('src') !== 'about:blank') {
       clearTimeout(pdfLoadTimer);
       modalPdfLoading.hidden = true;
     }
+  });
+
+  modalImagePreview.addEventListener('load', () => {
+    if (!modalImageWrap.hidden) {
+      clearTimeout(pdfLoadTimer);
+      modalPdfLoading.hidden = true;
+    }
+  });
+
+  modalImagePreview.addEventListener('error', () => {
+    clearTimeout(pdfLoadTimer);
+    modalPdfLoading.hidden = true;
   });
 
   function closeModal() {
@@ -364,6 +420,7 @@
     modal.hidden = true;
     document.body.style.overflow = '';
     modalPdfFrame.src = 'about:blank';
+    modalImagePreview.src = BLANK_IMAGE_SRC;
     modalPdfLoading.hidden = true;
 
     if (lastFocusedElement) {
